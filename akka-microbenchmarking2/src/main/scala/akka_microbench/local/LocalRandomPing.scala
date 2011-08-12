@@ -3,9 +3,10 @@
  *
  * This is a microbenchmark to test Akka
  *
- * The algorithm sends 'ping' messages to some initial workers (akka-actors). These than randomly
- * choose a worker to send another 'ping' message to. At each worker, the message hop is decreased until
- * it reaches zero, converging the algorithm to terminate.
+ * The algorithm sends 'ping' messages to all the workers (akka-actors).
+ * These then randomly choose a worker to send another 'ping' message to.
+ * At each worker, the message hop is decreased until it reaches zero.
+ * Each benchmark run ends when all initial messages have reached their maximum number of hops.
  *
  */
 package akka_microbench.local
@@ -35,8 +36,11 @@ object LocalRandomPing extends App {
 
   var runs: List[Long] = List()
 
+  /**
+   * Receives ping messages and sends out another ping, decreasing the hop counter at receive.
+   */
   class Worker(coordRef: ActorRef, numWorkers: Int) extends Actor {
-    
+
     self.dispatcher = Dispatchers.newThreadBasedDispatcher(self)
 
     def receive = {
@@ -53,8 +57,11 @@ object LocalRandomPing extends App {
 
   }
 
+  /**
+   * Coordinates initial ping messages and receive messages from workers when they are finished for time calculation
+   */
   class Master(numWorkers: Int, numMessages: Int, numHops: Int, repetitions: Int) extends Actor {
-    
+
     self.dispatcher = Dispatchers.newThreadBasedDispatcher(self)
 
     var start: Long = 0
