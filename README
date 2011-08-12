@@ -2,6 +2,8 @@ Akka Microbenchmark 2
 
 The purpose for this benchmark is to compare local execution vs. remote execution of actors using the random ping with hops algorithm.
 
+The algorithm sends 'ping' messages to all the workers (akka-actors). These then randomly choose a worker to send another 'ping' message to. At each worker, the message hop is decreased until it reaches zero, converging the algorithm to terminate.
+
 8 workers are used in total for both cases. In the remote case we use 2 machines where 4 workers are instantiated in each.
 
 The machines are iMacs with Core i7's 3Ghz with 4GB of RAM each.
