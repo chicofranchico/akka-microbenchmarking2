@@ -1,0 +1,58 @@
+Akka Microbenchmark 2
+
+The purpose for this benchmark is to compare local execution vs. remote execution of actors using the random ping with hops algorithm.
+
+8 workers are used in total for both cases. In the remote case we use 2 machines where 4 workers are instantiated in each.
+
+The machines are iMacs with Core i7's 3Ghz with 4GB of RAM each.
+The network was an exclusive one (with only the two machines) @ 100Mbit.
+
+These are the results:
+
+Parameters
+Number of actors / workers: 8
+Number of initial messages: 10000
+Number of hops: 100
+Repetitions: 5
+
+Local:
+
+Start pinging around: Fri Aug 12 16:14:48 CEST 2011
+Master start run #1
+Run #1 ended! Time = 1823.873ms
+Master start run #2
+Run #2 ended! Time = 1436.701ms
+Master start run #3
+Run #3 ended! Time = 1459.858ms
+Master start run #4
+Run #4 ended! Time = 1430.459ms
+Master start run #5
+Run #5 ended! Time = 1428.142ms
+Repetitions reached. Broadcasting shutdown...
+End: Fri Aug 12 16:14:55 CEST 2011
+Average execution time = 1515.8066 ms
+
+Remote:
+
+Start pinging around @ Fri Aug 12 15:59:05 CEST 2011
+Master start run #1
+Run #1 ended! Time = 167975.171ms
+Master start run #2
+Run #2 ended! Time = 161097.271ms
+Master start run #3
+Run #3 ended! Time = 166351.854ms
+Master start run #4
+Run #4 ended! Time = 154629.689ms
+Master start run #5
+Run #5 ended! Time = 123350.197ms
+Repetitions reached. Broadcasting shutdown...
+End: Fri Aug 12 16:11:58 CEST 2011
+Average execution time = 154680.8364 ms
+
+
+Difference:
+
+154680.8364 / 1515.8066 ≈ 102.05
+
+These results show a performance degradation by 100x by simply using remote actors.
+

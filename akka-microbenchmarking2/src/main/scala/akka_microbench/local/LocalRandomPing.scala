@@ -24,7 +24,7 @@ import akka.actor.ReceiveTimeout
 
 object LocalRandomPing extends App {
 
-  startPinging(workers = 8, messages = 10000, hops = 1000, repetitions = 5)
+  startPinging(workers = 8, messages = 10000, hops = 100, repetitions = 5)
 
   sealed trait PingMessage
   case class Start extends PingMessage

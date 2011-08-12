@@ -186,7 +186,7 @@ object RemoteRandomPingMachine0 {
 
 object RemoteRandomPingMachine1 {
 
-  val machine1 = "130.60.157.139"
+  val machine0 = "130.60.157.52"
 
   def main(args: Array[String]): Unit = {
 
@@ -194,7 +194,7 @@ object RemoteRandomPingMachine1 {
 
     remote.start(InetAddress.getLocalHost.getHostAddress, 2552)
 
-    val coord = remote.actorFor("coord-service", machine1, 2552)
+    val coord = remote.actorFor("coord-service", machine0, 2552)
 
     remote.register("worker-service4", actorOf(new Worker(coord, numWorkersTotal)))
     remote.register("worker-service5", actorOf(new Worker(coord, numWorkersTotal)))
