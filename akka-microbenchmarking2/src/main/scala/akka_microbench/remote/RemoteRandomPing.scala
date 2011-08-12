@@ -33,7 +33,7 @@ import scala.util.Random
 
 sealed trait PingMessage
 case object Start extends PingMessage
-case class Ping(hops: Int) extends PingMessage
+case class PingMsg(hops: Int) extends PingMessage
 case object End extends PingMessage
 
 trait IpDefinition {
@@ -64,11 +64,11 @@ class Worker(coordRef: ActorRef, numWorkers: Int) extends Actor with IpDefinitio
 
   def receive = {
 
-    case Ping(hops) =>
+    case PingMsg(hops) =>
       if (hops == 0)
         coordRef ! End
       else
-        workers(Random.nextInt(numWorkers)) ! Ping(hops - 1)
+        workers(Random.nextInt(numWorkers)) ! PingMsg(hops - 1)
 
     case End =>
       self.stop()
@@ -111,7 +111,7 @@ class Master(numWorkers: Int, numMessages: Int, numHops: Int, repetitions: Int) 
       // send to all of the workers 'numMessages' messages
       for (i <- 0 until numWorkers)
         for (j <- 0 until numMessages)
-          workers(i) ! Ping(numHops)
+          workers(i) ! PingMsg(numHops)
 
     case End =>
       receivedEnds += 1
