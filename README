@@ -56,5 +56,5 @@ Difference:
 
 154680.8364 / 1515.8066 ≈ 102.05
 
-These results show a performance degradation by 100x by simply using remote actors.
+These results show a performance degradation of 100x by simply using remote actors.
 
