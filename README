@@ -51,8 +51,25 @@ Repetitions reached. Broadcasting shutdown...
 End: Fri Aug 12 16:11:58 CEST 2011
 Average execution time = 154680.8364 ms
 
+Remote with protobuf:
 
-Difference:
+Start pinging around @ Fri Aug 12 18:49:14 CEST 2011
+Master start run #1
+Run #1 ended! Time = 109576.114ms
+Master start run #2
+Run #2 ended! Time = 107756.604ms
+Master start run #3
+Run #3 ended! Time = 120060.16ms
+Master start run #4
+Run #4 ended! Time = 111708.355ms
+Master start run #5
+Run #5 ended! Time = 114418.423ms
+Repetitions reached. Broadcasting shutdown...
+End: Fri Aug 12 18:58:37 CEST 2011
+Average execution time = 112703.9312 ms
+
+
+Difference: (remote with java / local)
 
 154680.8364 / 1515.8066 ≈ 102.05
 
