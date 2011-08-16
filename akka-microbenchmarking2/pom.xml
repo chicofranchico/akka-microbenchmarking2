@@ -23,10 +23,11 @@
 		</repository>
 
 		<repository>
-			<id>akka.repository</id>
-			<name>Akka Maven Repository</name>
-			<url>http://akka.io/repository</url>
+			<id>Akka</id>
+			<name>Akka Maven2 Repository</name>
+			<url>http://akka.io/repository/ </url>
 		</repository>
+
 	</repositories>
 
 	<pluginRepositories>
@@ -43,13 +44,16 @@
 		<dependency>
 			<groupId>se.scalablesolutions.akka</groupId>
 			<artifactId>akka-actor</artifactId>
-			<version>1.2-RC2</version>
-
+			<version>1.2-RC3</version>
+			<type>jar</type>
+			<scope>compile</scope>
 		</dependency>
 		<dependency>
 			<groupId>se.scalablesolutions.akka</groupId>
 			<artifactId>akka-remote</artifactId>
-			<version>1.2-RC2</version>
+			<version>1.2-RC3</version>
+			<type>jar</type>
+			<scope>compile</scope>
 
 		</dependency>
 		<!-- AKKA -->
@@ -79,7 +83,7 @@
 					</descriptorRefs>
 					<archive>
 						<manifest>
-							<mainClass>akka_microbench.remote.RemoteRandomPingMachine0</mainClass>
+							<mainClass>akka_microbench.remote.RemoteRandomPingMachine</mainClass>
 							<packageName>akka_microbench.remote</packageName>
 						</manifest>
 					</archive>
@@ -101,7 +105,6 @@
 					<execution>
 						<goals>
 							<goal>compile</goal>
-							<goal>testCompile</goal>
 						</goals>
 						<configuration>
 							<args>
@@ -112,19 +115,6 @@
 						</configuration>
 					</execution>
 				</executions>
-			</plugin>
-			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-surefire-plugin</artifactId>
-				<version>2.6</version>
-				<configuration>
-					<useFile>false</useFile>
-					<disableXmlReport>true</disableXmlReport>
-					<includes>
-						<include>**/*Test.*</include>
-						<include>**/*Suite.*</include>
-					</includes>
-				</configuration>
 			</plugin>
 		</plugins>
 	</build>

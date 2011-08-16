@@ -16,6 +16,10 @@
  *
  * Both machines have 4 workers each, summing a total of 8 workers
  *
+ * machine1$: java -jar test.jar 1
+ *
+ * machine0$: java -jar test.jar 0
+ *
  */
 package akka_microbench.remote
 
@@ -25,6 +29,7 @@ import akka.actor.ActorRef
 import akka.actor.PoisonPill
 import akka.actor.ReceiveTimeout
 import akka.dispatch._
+import akka.dispatch.MailboxType
 
 import java.util.Date
 import java.net.InetAddress
@@ -37,7 +42,7 @@ case class PingMsg(hops: Int) extends PingMessage
 case object End extends PingMessage
 
 trait IpDefinition {
-  
+
   def machine0 = "130.60.157.52"
 
   def machine1 = "130.60.157.139"
@@ -46,9 +51,9 @@ trait IpDefinition {
 /**
  * Receives ping messages and sends out another ping, decreasing the hop counter at receive.
  */
-class Worker(coordRef: ActorRef, numWorkers: Int) extends Actor with IpDefinition {
+class Worker(coordRef: ActorRef, numWorkers: Int, dispatcher: MessageDispatcher) extends Actor with IpDefinition {
 
-  self.dispatcher = Dispatchers.newThreadBasedDispatcher(self)
+  self.dispatcher = dispatcher //Dispatchers.newThreadBasedDispatcher(self)
 
   var workers: Array[ActorRef] = new Array[ActorRef](numWorkers)
 
@@ -149,9 +154,17 @@ class Master(numWorkers: Int, numMessages: Int, numHops: Int, repetitions: Int) 
 
 }
 /**
- * Start this after you started Machine 1
+ * Start this using arguments 1 first in one machine
+ * Then, start this using arguments 0 in another machine
+ *
+ * e.g.:
+ *
+ * machine1$: java -jar test.jar 1 01 a -1
+ *
+ * machine0$: java -jar test.jar 0 01 a -1
+ *
  */
-object RemoteRandomPingMachine0 extends IpDefinition {
+object RemoteRandomPingMachine extends IpDefinition {
 
   def main(args: Array[String]): Unit = {
 
@@ -161,49 +174,146 @@ object RemoteRandomPingMachine0 extends IpDefinition {
 
     val coord = remote.actorFor("coord-service", machine0, 2552)
 
-    remote.register("worker-service0", actorOf(new Worker(coord, numWorkersTotal)))
-    remote.register("worker-service1", actorOf(new Worker(coord, numWorkersTotal)))
-    remote.register("worker-service2", actorOf(new Worker(coord, numWorkersTotal)))
-    remote.register("worker-service3", actorOf(new Worker(coord, numWorkersTotal)))
+    /**
+     *
+     * Queue01 = withNewThreadPoolWithLinkedBlockingQueueWithUnboundedCapacity
+     * Queue02 = withNewThreadPoolWithLinkedBlockingQueueWithCapacity(8)
+     * Queue03 = withNewThreadPoolWithLinkedBlockingQueueWithCapacity(128)
+     * Queue04 = withNewThreadPoolWithSynchronousQueueWithFairness(true)
+     * Queue05 = withNewThreadPoolWithSynchronousQueueWithFairness(false)
+     * Queue06 = withNewThreadPoolWithArrayBlockingQueueWithCapacityAndFairness(8, false)
+     * Queue07 = withNewThreadPoolWithArrayBlockingQueueWithCapacityAndFairness(8, true)
+     *
+     */
 
-    val workers = 8
-    val messages = 10000
-    val hops = 100
-    val repetitions = 5
+    var poolSize = 0
+    var maxPoolSize = 0
+    var throughput = Integer.parseInt(args(3))
 
-    println("Workers: " + workers)
-    println("Messages: " + messages)
-    println("Hops: " + hops)
-    println("Repetitions: " + repetitions)
+    args(2) match {
 
-    // create the master
-    remote.register("coord-service", actorOf(new Master(workers, messages, hops, repetitions)))
+      case "a" =>
+        poolSize = 4
+        maxPoolSize = 8
 
-    val coordRef = remote.actorFor("coord-service", machine0, 2552)
+      case "b" =>
+        poolSize = 16
+        maxPoolSize = 128
 
-    // start the calculation
-    coordRef ! Start
+    }
 
-  }
+    println("Pool size = " + poolSize)
+    println("Max size = " + maxPoolSize)
+    println("Throughput = " + throughput)
 
-}
-/**
- * Start this first and then start Machine 0
- */
-object RemoteRandomPingMachine1 extends IpDefinition {
+    println("Queue type = " + args(1))
 
-  def main(args: Array[String]): Unit = {
+    var sharedDispatcher: MessageDispatcher = null
 
-    val numWorkersTotal = 8
+    if (args(1) equals "01") {
 
-    remote.start(InetAddress.getLocalHost.getHostAddress, 2552)
+      println("Queue01 = withNewThreadPoolWithLinkedBlockingQueueWithUnboundedCapacity")
 
-    val coord = remote.actorFor("coord-service", machine0, 2552)
+      sharedDispatcher = Dispatchers.newExecutorBasedEventDrivenDispatcher("shared executor dispatcher", throughput, UnboundedMailbox())
+        .withNewThreadPoolWithLinkedBlockingQueueWithUnboundedCapacity
+        .setCorePoolSize(poolSize)
+        .setMaxPoolSize(maxPoolSize)
+        .build
 
-    remote.register("worker-service4", actorOf(new Worker(coord, numWorkersTotal)))
-    remote.register("worker-service5", actorOf(new Worker(coord, numWorkersTotal)))
-    remote.register("worker-service6", actorOf(new Worker(coord, numWorkersTotal)))
-    remote.register("worker-service7", actorOf(new Worker(coord, numWorkersTotal)))
+    } else if (args(1) equals "02") {
+
+      println("Queue02 = withNewThreadPoolWithLinkedBlockingQueueWithCapacity(8)")
+
+      sharedDispatcher = Dispatchers.newExecutorBasedEventDrivenDispatcher("shared executor dispatcher", throughput, UnboundedMailbox())
+        .withNewThreadPoolWithLinkedBlockingQueueWithCapacity(8)
+        .setCorePoolSize(poolSize)
+        .setMaxPoolSize(maxPoolSize)
+        .build
+
+    } else if (args(1) equals "03") {
+
+      println("Queue03 = withNewThreadPoolWithLinkedBlockingQueueWithCapacity(128)")
+
+      sharedDispatcher = Dispatchers.newExecutorBasedEventDrivenDispatcher("shared executor dispatcher", throughput, UnboundedMailbox())
+        .withNewThreadPoolWithLinkedBlockingQueueWithCapacity(100)
+        .setCorePoolSize(poolSize)
+        .setMaxPoolSize(maxPoolSize)
+        .build
+
+    } else if (args(1) equals "04") {
+
+      println("Queue04 = withNewThreadPoolWithSynchronousQueueWithFairness(true)")
+
+      sharedDispatcher = Dispatchers.newExecutorBasedEventDrivenDispatcher("shared executor dispatcher", throughput, UnboundedMailbox())
+        .withNewThreadPoolWithSynchronousQueueWithFairness(true)
+        .setCorePoolSize(poolSize)
+        .setMaxPoolSize(maxPoolSize)
+        .build
+
+    } else if (args(1) equals "05") {
+
+      println("Queue05 = withNewThreadPoolWithSynchronousQueueWithFairness(false)")
+
+      sharedDispatcher = Dispatchers.newExecutorBasedEventDrivenDispatcher("shared executor dispatcher", throughput, UnboundedMailbox())
+        .withNewThreadPoolWithSynchronousQueueWithFairness(false)
+        .setCorePoolSize(poolSize)
+        .setMaxPoolSize(maxPoolSize)
+        .build
+
+    } else if (args(1) equals "06") {
+
+      println("Queue06 = withNewThreadPoolWithArrayBlockingQueueWithCapacityAndFairness(8, false)")
+
+      sharedDispatcher = Dispatchers.newExecutorBasedEventDrivenDispatcher("shared executor dispatcher", throughput, UnboundedMailbox())
+        .withNewThreadPoolWithArrayBlockingQueueWithCapacityAndFairness(8, false)
+        .setCorePoolSize(poolSize)
+        .setMaxPoolSize(maxPoolSize)
+        .build
+
+    } else if (args(1) equals "07") {
+
+      println("Queue07 = withNewThreadPoolWithArrayBlockingQueueWithCapacityAndFairness(8, true)")
+
+      sharedDispatcher = Dispatchers.newExecutorBasedEventDrivenDispatcher("shared executor dispatcher", throughput, UnboundedMailbox())
+        .withNewThreadPoolWithArrayBlockingQueueWithCapacityAndFairness(8, true)
+        .setCorePoolSize(poolSize)
+        .setMaxPoolSize(maxPoolSize)
+        .build
+    }
+
+    /** MACHINE 0 */
+    if (args(0) equals "0") {
+
+      remote.register("worker-service0", actorOf(new Worker(coord, numWorkersTotal, sharedDispatcher)))
+      remote.register("worker-service1", actorOf(new Worker(coord, numWorkersTotal, sharedDispatcher)))
+      remote.register("worker-service2", actorOf(new Worker(coord, numWorkersTotal, sharedDispatcher)))
+      remote.register("worker-service3", actorOf(new Worker(coord, numWorkersTotal, sharedDispatcher)))
+
+      val workers = 8
+      val messages = 10000
+      val hops = 100
+      val repetitions = 5
+
+      println("Workers: " + workers)
+      println("Messages: " + messages)
+      println("Hops: " + hops)
+      println("Repetitions: " + repetitions)
+
+      // create the master
+      remote.register("coord-service", actorOf(new Master(workers, messages, hops, repetitions)))
+
+      // start the calculation
+      coord ! Start
+
+    } else {
+
+      /** MACHINE 1 */
+
+      remote.register("worker-service4", actorOf(new Worker(coord, numWorkersTotal, sharedDispatcher)))
+      remote.register("worker-service5", actorOf(new Worker(coord, numWorkersTotal, sharedDispatcher)))
+      remote.register("worker-service6", actorOf(new Worker(coord, numWorkersTotal, sharedDispatcher)))
+      remote.register("worker-service7", actorOf(new Worker(coord, numWorkersTotal, sharedDispatcher)))
+    }
 
   }
 
