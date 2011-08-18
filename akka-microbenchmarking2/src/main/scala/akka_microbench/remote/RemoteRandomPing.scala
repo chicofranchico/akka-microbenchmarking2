@@ -30,16 +30,23 @@ import akka.actor.PoisonPill
 import akka.actor.ReceiveTimeout
 import akka.dispatch._
 import akka.dispatch.MailboxType
-
 import java.util.Date
 import java.net.InetAddress
-
+import java.util.concurrent.ConcurrentLinkedQueue
 import scala.util.Random
+import scala.concurrent.forkjoin.LinkedTransferQueue
 
 sealed trait PingMessage
 case object Start extends PingMessage
 case class PingMsg(hops: Int) extends PingMessage
 case object End extends PingMessage
+
+/*trait Unbound extends MessageQueue { self: LinkedTransferQueue[MessageInvocation] =>
+  @inline
+  final def enqueue(handle: MessageInvocation): Unit = this add handle
+  @inline
+  final def dequeue(): MessageInvocation = this.poll()
+}*/
 
 trait IpDefinition {
 
@@ -51,11 +58,13 @@ trait IpDefinition {
 /**
  * Receives ping messages and sends out another ping, decreasing the hop counter at receive.
  */
-class Worker(coordRef: ActorRef, numWorkers: Int, dispatcher: MessageDispatcher) extends Actor with IpDefinition {
+class Worker(id: Int, coordRef: ActorRef, numWorkers: Int, numMessages: Int, numHops: Int, dispatcher: MessageDispatcher) extends Actor with IpDefinition {
 
-  self.dispatcher = dispatcher //Dispatchers.newThreadBasedDispatcher(self)
+  self.dispatcher = dispatcher
 
   var workers: Array[ActorRef] = new Array[ActorRef](numWorkers)
+
+  var lastTime = 0l
 
   override def preStart {
 
@@ -69,11 +78,45 @@ class Worker(coordRef: ActorRef, numWorkers: Int, dispatcher: MessageDispatcher)
 
   def receive = {
 
+    case Start =>
+      for (i <- 0 until numMessages)
+        self ! PingMsg(numHops)
+
     case PingMsg(hops) =>
       if (hops == 0)
         coordRef ! End
-      else
-        workers(Random.nextInt(numWorkers)) ! PingMsg(hops - 1)
+      else {
+
+        var now = System.nanoTime
+
+        if (now - lastTime > 1000000000) {
+          println(self.mailboxSize)
+          lastTime = System.nanoTime
+          println("h:" + hops)
+        }
+
+        /*if (id < 4)
+          workers(Random.nextInt(3) + 4) ! PingMsg(hops - 1)
+        else
+          workers(Random.nextInt(3)) ! PingMsg(hops - 1)*/
+
+        if (id == 0)
+          workers(7) ! PingMsg(hops - 1)
+        else if (id == 1)
+          workers(6) ! PingMsg(hops - 1)
+        else if (id == 2)
+          workers(5) ! PingMsg(hops - 1)
+        else if (id == 3)
+          workers(4) ! PingMsg(hops - 1)
+        else if (id == 4)
+          workers(3) ! PingMsg(hops - 1)
+        else if (id == 5)
+          workers(2) ! PingMsg(hops - 1)
+        else if (id == 6)
+          workers(1) ! PingMsg(hops - 1)
+        else if (id == 7)
+          workers(0) ! PingMsg(hops - 1)
+      }
 
     case End =>
       self.stop()
@@ -88,6 +131,8 @@ class Master(numWorkers: Int, numMessages: Int, numHops: Int, repetitions: Int) 
 
   self.dispatcher = Dispatchers.newThreadBasedDispatcher(self)
 
+  //self.receiveTimeout = Some(10000l)
+
   var start: Long = 0
   var end: Long = 0
   var receivedEnds: Int = 0
@@ -97,6 +142,9 @@ class Master(numWorkers: Int, numMessages: Int, numHops: Int, repetitions: Int) 
   var workers: Array[ActorRef] = new Array[ActorRef](numWorkers)
 
   def receive = {
+
+    /*case ReceiveTimeout =>
+      println("timeout")*/
 
     case Start =>
 
@@ -113,10 +161,19 @@ class Master(numWorkers: Int, numMessages: Int, numHops: Int, repetitions: Int) 
 
       start = System.nanoTime
 
-      // send to all of the workers 'numMessages' messages
-      for (i <- 0 until numWorkers)
+      val workersPar = workers.par
+
+      workersPar foreach { x =>
+
+        //for (i <- 0 until numMessages)
+        x ! Start
+
+      }
+
+    // send to all of the workers 'numMessages' messages
+    /*for (i <- 0 until numWorkers)
         for (j <- 0 until numMessages)
-          workers(i) ! PingMsg(numHops)
+          workers(i) ! PingMsg(numHops)*/
 
     case End =>
       receivedEnds += 1
@@ -281,18 +338,32 @@ object RemoteRandomPingMachine extends IpDefinition {
         .build
     }
 
+    /*var sharedDispatcher: MessageDispatcher = null
+    sharedDispatcher = new ExecutorBasedEventDrivenDispatcher("shared executor dispatcher", -1, UnboundedMailbox()) {
+
+      val self = this
+
+      override def createMailbox(actorRef: ActorRef): AnyRef = mailboxType match {
+        case b: UnboundedMailbox => new LinkedTransferQueue[MessageInvocation] with Unbound with ExecutableMailbox {
+          def dispatcher = self
+        }
+        case _ => super.createMailbox(actorRef)
+      }
+
+    }*/
+
+    val workers = 8
+    val messages = 10000
+    val hops = 100
+    val repetitions = 5
+
     /** MACHINE 0 */
     if (args(0) equals "0") {
 
-      remote.register("worker-service0", actorOf(new Worker(coord, numWorkersTotal, sharedDispatcher)))
-      remote.register("worker-service1", actorOf(new Worker(coord, numWorkersTotal, sharedDispatcher)))
-      remote.register("worker-service2", actorOf(new Worker(coord, numWorkersTotal, sharedDispatcher)))
-      remote.register("worker-service3", actorOf(new Worker(coord, numWorkersTotal, sharedDispatcher)))
-
-      val workers = 8
-      val messages = 10000
-      val hops = 100
-      val repetitions = 5
+      remote.register("worker-service0", actorOf(new Worker(0, coord, numWorkersTotal, messages, hops, sharedDispatcher)))
+      remote.register("worker-service1", actorOf(new Worker(1, coord, numWorkersTotal, messages, hops, sharedDispatcher)))
+      remote.register("worker-service2", actorOf(new Worker(2, coord, numWorkersTotal, messages, hops, sharedDispatcher)))
+      remote.register("worker-service3", actorOf(new Worker(3, coord, numWorkersTotal, messages, hops, sharedDispatcher)))
 
       println("Workers: " + workers)
       println("Messages: " + messages)
@@ -309,10 +380,10 @@ object RemoteRandomPingMachine extends IpDefinition {
 
       /** MACHINE 1 */
 
-      remote.register("worker-service4", actorOf(new Worker(coord, numWorkersTotal, sharedDispatcher)))
-      remote.register("worker-service5", actorOf(new Worker(coord, numWorkersTotal, sharedDispatcher)))
-      remote.register("worker-service6", actorOf(new Worker(coord, numWorkersTotal, sharedDispatcher)))
-      remote.register("worker-service7", actorOf(new Worker(coord, numWorkersTotal, sharedDispatcher)))
+      remote.register("worker-service4", actorOf(new Worker(4, coord, numWorkersTotal, messages, hops, sharedDispatcher)))
+      remote.register("worker-service5", actorOf(new Worker(5, coord, numWorkersTotal, messages, hops, sharedDispatcher)))
+      remote.register("worker-service6", actorOf(new Worker(6, coord, numWorkersTotal, messages, hops, sharedDispatcher)))
+      remote.register("worker-service7", actorOf(new Worker(7, coord, numWorkersTotal, messages, hops, sharedDispatcher)))
     }
 
   }
